@@ -1,14 +1,17 @@
 {
   "name": "docker_web_app",
   "version": "1.0.0",
-  "description": "Node.js on Docker",
+  "description": "Webhook server for anchore to query API for vulnerabilities with received image",
   "author": "juri",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node app/server.js"
   },
   "dependencies": {
+    "@slack/webhook": "^5.0.2",
     "koa": "^2.11.0",
-    "koa-body": "^4.1.1"
+    "koa-bodyparser": "^4.2.1",
+    "koa-router": "^7.4.0",
+    "node-fetch": "^2.6.0"
   }
 }
