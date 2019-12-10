@@ -35,7 +35,7 @@ app.use(async (ctx, next) => {
 
 router.post('/analysis_update', async (ctx) => {
   const json_res = ctx.request.body;
-  console.log(json_res);
+  ctx.status = 200;
   const image = json_res.data.notification_payload.subscription_key;
   console.log("image: " + image);
   const result = await request_imageId(image);
@@ -49,12 +49,9 @@ router.post('/analysis_update', async (ctx) => {
   //var formatted_text = Object.entries(groups).map(([ package, { feed_group, vulnerabilities } ]) => {
   //  return `${package} (${feed_group}) count: ${vulnerabilities.length} list: ${vulnerabilities.map(x => `- ${x.severity} (${x.vuln}) -> fix: ${x.fix} `).join(', ')}`
   //});
-  if ( severe.length === 0 ) {
-    ctx.status = 200;
-  } else if (SLACK_URL){
+  if (SLACK_URL && severe.length !== 0){
     await slack_notification(image, groups);
   }
-  ctx.status = 200;
 });
 
 // simple health check
