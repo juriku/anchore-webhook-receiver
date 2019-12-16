@@ -37,30 +37,32 @@ app.use(async (ctx, next) => {
 router.post('/analysis_update', async (ctx) => {
   const json_res = ctx.request.body;
   ctx.status = 200;
-  try {
-    const image = json_res.data.notification_payload.subscription_key;
-    console.log("image: " + image);
-    const result = await request_imageId(image);
-    //console.log(result);
-    console.log('length of all vulns', result.length);
-    var filterResult = result.filter(x => ['High', 'Critical'].includes(x.severity));
-    console.log('length of severe vulns', filterResult.length);
-    filterResult = filterResult.filter(v => ![FIX_VALUE_IGNORE].includes(v.fix));
-    console.log('length filtered vulns', filterResult.length);
-    const groups = filterResult.reduce((acc, { vuln, package, feed_group, fix, severity, url }) => {
-      acc[vuln] = acc[vuln] || { feed_group, url, vulnerabilities: [] };
-      acc[vuln].vulnerabilities.push({ severity, package, fix });
-      return acc;
-    }, {});
-    if (SLACK_URL && filterResult.length !== 0){
-      await slack_notification(image, groups);
+  (async () => {
+    try {
+      const image = json_res.data.notification_payload.subscription_key;
+      console.log("image: " + image);
+      const result = await request_imageId(image);
+      //console.log(result);
+      console.log('length of all vulns', result.length);
+      var filterResult = result.filter(x => ['High', 'Critical'].includes(x.severity));
+      console.log('length of severe vulns', filterResult.length);
+      filterResult = filterResult.filter(v => ![FIX_VALUE_IGNORE].includes(v.fix));
+      console.log('length filtered vulns', filterResult.length);
+      const groups = filterResult.reduce((acc, { vuln, package, feed_group, fix, severity, url }) => {
+        acc[vuln] = acc[vuln] || { feed_group, url, vulnerabilities: [] };
+        acc[vuln].vulnerabilities.push({ severity, package, fix });
+        return acc;
+      }, {});
+      if (SLACK_URL && filterResult.length !== 0){
+        await slack_notification(image, groups);
+      }
+    } catch (err) {
+      console.log(err);
+      if (SLACK_URL){
+        slack_error(err);
+      }
     }
-  } catch (err) {
-    console.log(err);
-    if (SLACK_URL){
-      slack_error(err);
-    }
-  }
+  })();
 });
 
 // simple health check
