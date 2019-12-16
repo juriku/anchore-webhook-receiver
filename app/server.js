@@ -13,7 +13,7 @@ const ANCHORE_PASS = process.env.ANCHORE_PASS || 'foobar';
 const ANCHORE_HOST = process.env.ANCHORE_HOST || 'localhost';
 const ANCHORE_PORT = process.env.ANCHORE_PORT || 8228;
 const SLACK_URL = process.env.SLACK_WEBHOOK_URL;
-const FIX_VALUE_IGNORE = process.env.FIX_VALUE_IGNORE;
+const FIX_VALUE_IGNORE = process.env.FIX_VALUE_IGNORE; // can filter out 'None' - in case there is ni fix
 
 const app = new Koa();
 const router = new Router();
@@ -41,19 +41,18 @@ router.post('/analysis_update', async (ctx) => {
     const image = json_res.data.notification_payload.subscription_key;
     console.log("image: " + image);
     const result = await request_imageId(image);
-    console.log(result);
-    const severe = result.filter(x => ['High', 'Critical'].includes(x.severity));
-    console.log(severe);
-    console.log('length of severe vulns', severe.length);
-    const groups = severe.reduce((acc, { vuln, package, feed_group, fix, severity, url }) => {
+    //console.log(result);
+    console.log('length of all vulns', result.length);
+    var filterResult = result.filter(x => ['High', 'Critical'].includes(x.severity));
+    console.log('length of severe vulns', filterResult.length);
+    filterResult = filterResult.filter(v => ![FIX_VALUE_IGNORE].includes(v.fix));
+    console.log('length filtered vulns', filterResult.length);
+    const groups = filterResult.reduce((acc, { vuln, package, feed_group, fix, severity, url }) => {
       acc[vuln] = acc[vuln] || { feed_group, url, vulnerabilities: [] };
       acc[vuln].vulnerabilities.push({ severity, package, fix });
       return acc;
     }, {});
-    //var formatted_text = Object.entries(groups).map(([ package, { feed_group, vulnerabilities } ]) => {
-    //  return `${package} (${feed_group}) count: ${vulnerabilities.length} list: ${vulnerabilities.map(x => `- ${x.severity} (${x.vuln}) -> fix: ${x.fix} `).join(', ')}`
-    //});
-    if (SLACK_URL && severe.length !== 0){
+    if (SLACK_URL && filterResult.length !== 0){
       await slack_notification(image, groups);
     }
   } catch (err) {
@@ -97,49 +96,23 @@ async function request_vuln(image, imageId) {
   return json.vulnerabilities;
 }
 
-// const groupsToAttachments = groups =>
-//   Object.values(groups)
-//     .map(({ feed_group, package, fix, url, vuln, severity }) => {
-//       let highestSeverity = 'High';
-//       var checkVuln;
-//       if (fix !== 'None') {
-//         if (vuln !== checkVuln) {
-//           checkVuln = vuln;
-//           if (severity === 'Critical' && highestSeverity === 'High') highestSeverity = severity;
-//           var color = highestSeverity === 'Critical' ? '#E01E5A' : '#ECB22E'
-//           const obj = {
-//             title: vuln,
-//             title_link: url,
-//             text: "fix: " + fix,
-//             pretext: `${package} (${feed_group})`,
-//             color: color,
-//         };
-//         return obj;
-//       };
-//       };
-//     });
-
 const groupsToAttachments = groups =>
   Object.entries(groups)
     .map(([ vuln, { feed_group, url, vulnerabilities }]) => {
       let highestSeverity = 'High';
-      let fixFound = false;
       const obj = {
         title: `${vuln} (${feed_group})`,
         title_link: url,
         fields: vulnerabilities.map(x => {
           if (x.severity === 'Critical' && highestSeverity === 'High') highestSeverity = x.severity;
-          if (x.fix !== FIX_VALUE_IGNORE) {
-            fixFound = true
-            return {
-              title: x.package,
-              value: "fix: " + x.fix,
-              }
-          };
+          return {
+            title: x.package,
+            value: "fix: " + x.fix,
+            }
         }),
       };
       obj.color = highestSeverity === 'Critical' ? '#E01E5A' : '#ECB22E';
-      if (fixFound === true) return obj;
+      return obj;
     });
 
 // Send the notification
